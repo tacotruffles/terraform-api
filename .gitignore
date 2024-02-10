@@ -1,0 +1,4 @@
+# File System
+assets/
+.DS_Store
+api/package-lock.json

@@ -1,0 +1,116 @@
+name: api-v1
+
+on:
+  push:
+    branches: [ 'stage', 'prod' ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Node Build
+      CI: false
+      NODE_VERSION: '16.x'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+
+      # Terraform Configs
+      terraform-directory: terraform
+      asset-directory: api
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Get Branch Name
+        run: echo "BRANCH_NAME=$(echo ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}})" >> $GITHUB_ENV
+
+      - name: Checkout ${{ env.BRANCH_NAME }} branch, triggered via ${{ github.event_name }}
+        uses: actions/checkout@v3
+
+      - name: Determine which API_<STAGE>_DOTENV secret JSON to read in
+        id: vars
+        run: |
+          branch=${{ env.BRANCH_NAME }}
+          echo "API_DOTENV=API_${branch^^}_DOTENV" >> $GITHUB_OUTPUT
+
+      - name: Eject .env Values From Repos Secrets
+        run: echo "${{ secrets[steps.vars.outputs.API_DOTENV] }}" > .env
+        working-directory: ${{ env.asset-directory }}
+
+      - name: Stage Terraform Config File for Ingestion 
+        run: cp terraform/tf.cfg terraform/.env
+  
+      - name: Load Terraform Config File
+        uses: xom9ikk/dotenv@v2
+        with:
+          path: terraform
+          load-mode: strict
+      
+      - name: AWS Environment
+        run: |
+          echo "AWS Profile: ${{ env.AWS_PROFILE }}"
+          echo "AWS Region: ${{ env.AWS_REGION }}"
+          echo "Prefix: ${{ env.PREFIX }}"
+          echo "Stage: ${{ env.STAGES }}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Add profile credentials to ~/.aws/credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }} --profile ${{ env.AWS_PROFILE }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} --profile ${{ env.AWS_PROFILE }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.2
+          terraform_wrapper: false # to get jq to play nice
+  
+      - name: Terraform Init
+        run: ./tf.sh init ${{ env.BRANCH_NAME }}
+        working-directory: ${{ env.terraform-directory }}/${{ env.asset-directory }}
+      
+      # Thread Terraform Outputs to .env file
+      # - name: Terraform Config (.env)
+      #   run: ./tf.sh env ${{ env.BRANCH_NAME }}
+      #   working-directory: ${{ env.terraform-directory }}/${{ env.asset-directory }}
+
+      - name: Terraform Validation
+        run: terraform validate
+        working-directory: ${{ env.terraform-directory }}/${{ env.asset-directory }}
+      
+      - name: Clean Up Old Build Files
+        run: |
+          rm -rf ./api/assets
+          rm -rf ./api/build
+          rm -rf ./api/dist
+          rm -rf ./api/node_modules   
+
+      - name: Install Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install --omit=dev
+        working-directory: ${{ env.asset-directory }}
+
+      # - name: Build API  ${{ env.NODE_VERSION }}
+      #   run: |
+      #     npm run build
+      #     echo "NODE VERSION: " && node --version
+      #   working-directory: ${{ env.asset-directory }}
+
+      - name: Terraform Plan
+        id: plan
+        run: ./tf.sh plan ${{ env.BRANCH_NAME }}
+        working-directory: ${{env.terraform-directory}}/${{ env.asset-directory }}
+
+      - name: Terraform Apply
+        id: apply
+        run: ./tf.sh apply ${{ env.BRANCH_NAME }} # -no-color --auto-approve
+        working-directory: ${{env.terraform-directory}}/${{ env.asset-directory }}

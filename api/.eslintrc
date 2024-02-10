@@ -1,0 +1,37 @@
+{
+	"extends": ["eslint:recommended", "airbnb-base", "prettier"],
+	"plugins": [],
+	"env": {
+		"commonjs": true,
+		"node": true,
+		"es2021": true
+	},
+	"parserOptions": {
+		"ecmaVersion": 11
+	},
+	"rules": {
+		"no-underscore-dangle": [2, {
+			"allow": ["_attributes", "_id"]
+		}],
+		"prefer-destructuring": "off",
+		"no-plusplus": "off",
+		"spaced-comment": ["off", "always", {
+			"exceptions": ["-", "+", " ", ""]
+		}],
+		"no-param-reassign": "off",
+		"no-unused-vars": "warn",
+		"prefer-const": "warn",
+		"eqeqeq": "warn",
+		"indent": "off",
+		"radix": "off",
+		"object-shorthand": "off",
+		"func-names": "off",
+		"no-return-await": "warn",
+		"no-console": "off",
+		"function-paren-newline": "off",
+		"arrow-parens": "off",
+		"operator-linebreak": "off",
+		"no-prototype-builtins": "warn",
+		"consistent-return": "warn"
+	}
+}
