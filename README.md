@@ -1,4 +1,4 @@
-# API - Layer 2 - IaC
+# API - Layer 3 - IaC
 
 ## Prereqs
 
