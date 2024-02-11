@@ -2,7 +2,7 @@
 const postmark = require("postmark");
 
 // Send an email:
-const client = new postmark.ServerClient("d97a0f9f-0845-42fb-87a4-aec3b6cb3a91");
+const client = new postmark.ServerClient("");
 
 
 const postmarkHelper = {
